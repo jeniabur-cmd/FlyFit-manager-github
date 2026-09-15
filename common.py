@@ -3,6 +3,7 @@ import datetime as dt
 
 import streamlit as st
 
+import arbox
 import db
 
 RTL_CSS = """
@@ -52,6 +53,7 @@ def init_page(page_title: str, page_icon: str = "🗂️") -> None:
     st.set_page_config(page_title=page_title, page_icon=page_icon, layout="centered")
     st.markdown(RTL_CSS, unsafe_allow_html=True)
     db.run_daily_maintenance()
+    arbox.maybe_sync_schedule()
 
 
 def category_creator(key_prefix: str) -> None:

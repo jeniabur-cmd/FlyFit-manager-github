@@ -4,6 +4,7 @@ import datetime as dt
 import streamlit as st
 from streamlit_calendar import calendar
 
+import arbox
 import db
 from common import init_page, category_creator, category_options, render_task_row
 
@@ -90,3 +91,43 @@ else:
     for task in day_tasks:
         render_task_row(task, key_prefix="cal")
         st.divider()
+
+# --- שכבת לוח שיעורים מ-Arbox (לצד המשימות, לא במקומן) ---
+try:
+    day_classes = arbox.get_classes_for_date(selected_date)
+    last_sync = arbox.last_synced_at()
+except Exception:
+    day_classes = None
+    last_sync = None
+
+if day_classes is not None:
+    st.divider()
+    header_col, btn_col = st.columns([0.7, 0.3])
+    header_col.subheader(f"🏋️ שיעורים - {selected_date}")
+    if last_sync:
+        header_col.caption(f"עדכון אחרון: {last_sync.astimezone(db.TZ).strftime('%d/%m %H:%M')}")
+    if btn_col.button("🔄 רענן לו\"ז עכשיו", key="arbox_refresh_btn"):
+        try:
+            count = arbox.sync_schedule()
+            st.success(f"סונכרנו {count} שיעורים מ-Arbox")
+        except Exception as e:
+            st.error(f"סנכרון מול Arbox נכשל: {e}")
+        st.rerun()
+
+    if not day_classes:
+        st.caption("אין שיעורים רשומים ביום זה")
+    else:
+        for c in day_classes:
+            time_str = str(c["time"])[:5] if c.get("time") else None
+            capacity, booked = c.get("capacity"), c.get("booked_count")
+            occupancy = f"{booked}/{capacity}" if capacity is not None and booked is not None else None
+            bits = [b for b in [
+                f"🕒 {time_str}" if time_str else None,
+                f"🧑‍🏫 {c['instructor_name']}" if c.get("instructor_name") else None,
+                f"👥 {occupancy}" if occupancy else None,
+            ] if b]
+            st.markdown(
+                f"**{c.get('class_type') or 'שיעור'}**"
+                + (f"  \n<small>{'  '.join(bits)}</small>" if bits else ""),
+                unsafe_allow_html=True,
+            )

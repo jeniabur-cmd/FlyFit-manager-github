@@ -14,8 +14,8 @@
    ```
 
 2. יצירת הסכימה ב-Supabase: פתחו את **SQL Editor** בפרויקט ה-Supabase שלכם
-   (https://hhwtbnzltbwfchcplqwr.supabase.co) והריצו את הקובץ
-   `migrations/001_init.sql`.
+   (https://hhwtbnzltbwfchcplqwr.supabase.co) והריצו את `migrations/001_init.sql`
+   ולאחריו `migrations/002_arbox_classes.sql`.
 
 3. הגדרת secrets: העתיקו את `.streamlit/secrets.toml.example` ל-
    `.streamlit/secrets.toml` ומלאו את הערכים האמיתיים:
@@ -24,6 +24,7 @@
    SUPABASE_URL = "https://hhwtbnzltbwfchcplqwr.supabase.co"
    SUPABASE_ANON_KEY = "..."
    SUPABASE_SERVICE_ROLE_KEY = "..."
+   ARBOX_API_KEY = "..."   # אופציונלי - ראו "סנכרון לו\"ז מ-Arbox" למטה
    ```
 
    קובץ זה לא נשלח ל-GitHub (מוגדר ב-`.gitignore`). האפליקציה משתמשת ב-
@@ -65,9 +66,62 @@ pages/1_משימות.py       כל המשימות, סינון, הוספה, ער�
 pages/2_לוח_שנה.py      תצוגת לוח שנה חודשי אינטראקטיבית
 pages/3_תבניות.py       ניהול משימות חוזרות (templates)
 db.py                   שכבת גישה ל-Supabase + לוגיקת גלגול/יצירה יומית
-common.py               רכיבי UI משותפים ו-RTL CSS
+common.py               רכיבי UI משותפים, RTL CSS, והפעלת תחזוקה/סנכרון בכל עמוד
+arbox.py                אינטגרציה עם Arbox API - שליפת לו"ז וסנכרון ל-arbox_classes
 migrations/001_init.sql סכימת בסיס הנתונים
+migrations/002_arbox_classes.sql סכימת טבלת לוח השיעורים מ-Arbox
 ```
+
+## סנכרון לו"ז מ-Arbox
+
+- מבוסס על ה-API הרשמי של Arbox (v3, מפתח קבוע בכותרת `api-key`), התיעוד
+  ב-https://arboxserver.arboxapp.com/docs/api (לא developers.arboxapp.com -
+  דומיין זה לא קיים).
+- כל טעינת עמוד מפעילה את `common.init_page`, וזו קוראת ל-
+  `arbox.maybe_sync_schedule()` - אם עברה יותר משעה מאז השדה `synced_at`
+  העדכני ביותר בטבלת `arbox_classes` (או שמעולם לא בוצע סנכרון), מתבצעת שליפה
+  מלאה של 30 הימים הקרובים ו-upsert לטבלה. שגיאות API (מפתח לא תקין, שירות לא
+  זמין, הטבלה עוד לא נוצרה) נבלעות בשקט - האפליקציה ממשיכה לעבוד רגיל עם
+  המשימות בלבד.
+- כפתור **"🔄 רענן לו"ז עכשיו"** בעמוד "לוח שנה" מפעיל סנכרון מיידי (ללא תלות
+  בזמן שעבר).
+- מפתח הייחוד ל-upsert הוא הזוג `(arbox_id, date)` ולא `arbox_id` בלבד, כי
+  התיעוד של Arbox לא מבטיח ש-`schedule_id` ייחודי למופע שיעור ספציפי (הוא עשוי
+  להיות מזהה של הגדרת שיעור חוזר, שחוזר על עצמו בכל שבוע). כך נשמרת השורה של
+  כל תאריך בנפרד ולעולם לא נמחקת - מה שמאפשר בהמשך ניתוח תפוסה היסטורי.
+- מיפוי שדות מתשובת ה-API (`session_name`→class_type, `staff_member`→
+  instructor_name, `max_participants`→capacity, `registration_count`→
+  booked_count) הוא הקרוב ביותר סמנטית לשמות שביקשתם; אין ב-API שדה בשם מפורש
+  "סוג שיעור" - `session_name` הוא שם/כותרת השיעור כפי שמוגדר ב-Arbox.
+- שימו לב: בפועל `staff_member`/`second_staff_member` מוחזרים לעיתים כאובייקט
+  `{user_id, phone, email, name}` ולא כמחרוזת כמתועד (למשל בהזמנות ניסיון).
+  `arbox.py` שולף מהאובייקט רק את `name` - לעולם לא טלפון/אימייל - כדי שלא
+  לדלוף פרטי לקוח לעמודת `instructor_name`.
+
+## עמוד "יועץ תכנון" (`pages/4_יועץ_תכנון.py`)
+
+צ'אטבוט (OpenAI, מודל `gpt-4o-mini`, function calling) שעוזר בתכנון עתידי של
+הסטודיו - שבועות פתוחים, מופעים, ריטריטים.
+
+- `advisor.py` מגדיר כלי OpenAI **אחד מאוחד**, `get_studio_context(date_from,
+  date_to)`, שמרכז לפי בקשת המודל: משימות (`db.get_tasks`), לוח שיעורים מ-
+  Arbox (`arbox.get_classes_between`), אירועים מיומן הסטודיו ב-Google
+  (`google_calendar.get_studio_events`), וחגים (`religious_calendar.
+  get_holidays`). כלי מאוחד אחד עם טווח תאריכים חופשי נבחר על פני 4 כלים
+  נפרדים (מורכב מדי) או context קבוע (לא מכסה שאלות על טווחים רחוקים).
+- הערות קבועות מ-`DATA/mydates.docx` (ימים/תקופות חשובות לסטודיו) נכללות
+  ישירות ב-system prompt בכל שיחה.
+- `google_calendar.py`: גישה ליומן הסטודיו (`flyfit03@gmail.com`) בלבד, דרך
+  Service Account (`.streamlit/gcp_service_account.json`, לא ב-git). היומן
+  האישי אינו משותף עם ה-Service Account בכוונה ולכן אינו נתמך כרגע.
+- `religious_calendar.py`: חגים יהודיים/מוסלמיים/נוצריים דרך חבילת `holidays`
+  (ללא מפתח API) - `Israel()`, `SaudiArabia()` מסונן ל-Eid, `Italy()` מסונן
+  לחגים דתיים.
+- היסטוריית השיחה נשמרת רק ב-`st.session_state` (לא ב-DB) - מתאפסת בין
+  הפעלות שרת/סשן.
+- טיפול שגיאות: בלי `OPENAI_API_KEY` העמוד מציג הודעה ועוצר, בלי לקרוס; כל
+  מקור נתונים בכלי המאוחד עטוף בנפרד ב-try/except כך שכשל באחד (למשל Google
+  Calendar לא זמין) לא מפיל את שאר הנתונים.
 
 ## לוגיקה עסקית
 
