@@ -6,6 +6,7 @@ from streamlit_calendar import calendar
 
 import arbox
 import db
+import religious_calendar
 from common import init_page, category_creator, category_options, render_task_row
 
 init_page("לוח שנה", "📅")
@@ -26,6 +27,27 @@ events = [
     }
     for date_str, count in counts.items()
 ]
+
+# --- שכבת חגים (יהודי/מוסלמי/נוצרי) - חלון רחב כדי לכסות דפדוף אחורה וקדימה בלוח ---
+holiday_window_from = (dt.date.today() - dt.timedelta(days=90)).isoformat()
+holiday_window_to = (dt.date.today() + dt.timedelta(days=365)).isoformat()
+try:
+    all_holidays, holidays_degraded = religious_calendar.get_all_holidays(
+        holiday_window_from, holiday_window_to
+    )
+except Exception:
+    all_holidays, holidays_degraded = [], ["חגים: שגיאה בלתי צפויה"]
+
+for h in all_holidays:
+    meta = religious_calendar.RELIGION_META.get(h["religion"], {})
+    events.append(
+        {
+            "title": f"{meta.get('icon', '')} {h['name']}".strip(),
+            "start": h["date"],
+            "allDay": True,
+            "color": meta.get("color", "#6b7280"),
+        }
+    )
 
 calendar_options = {
     "headerToolbar": {
@@ -131,3 +153,18 @@ if day_classes is not None:
                 + (f"  \n<small>{'  '.join(bits)}</small>" if bits else ""),
                 unsafe_allow_html=True,
             )
+
+# --- שכבת חגים (לצד המשימות והשיעורים, לא במקומם) ---
+st.divider()
+st.subheader(f"🎉 חגים - {selected_date}")
+if holidays_degraded:
+    st.caption("⚠️ חלק ממקורות החגים לא היו זמינים כרגע: " + " | ".join(holidays_degraded))
+
+day_holidays = [h for h in all_holidays if h["date"] == selected_date]
+if not day_holidays:
+    st.caption("אין חגים ביום זה")
+else:
+    for h in day_holidays:
+        meta = religious_calendar.RELIGION_META.get(h["religion"], {})
+        st.markdown(f"{meta.get('icon', '')} **{h['name']}**  \n<small>{meta.get('label', h['religion'])}</small>",
+                    unsafe_allow_html=True)

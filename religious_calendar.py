@@ -1,48 +1,110 @@
-"""חגים יהודיים/מוסלמיים/נוצריים לטווח תאריכים, מבוסס על חבילת holidays
-(ללא צורך במפתח API). משמש את היועץ כדי להימנע מהצעת תאריכים שמתנגשים עם חג.
+"""חגים לטווח תאריכים, משלושה מקורות נפרדים לפי מה שנבדק בפועל בשיחה:
+
+- יהודיים: Hebcal REST API (hebcal.com) - ללא מפתח.
+- נוצריים: Nager.Date public holidays API (date.nager.at) - ללא מפתח, דרך
+  לוח החגים הדתיים של איטליה (קתולי) כמקור מייצג.
+- מוסלמיים: Aladhan API (api.aladhan.com) התגלה כלא נגיש מסביבת הפיתוח (חיבור
+  נתקע לגמרי, לא רק איטי) - הוחלף בבקשת המשתמש בחבילת holidays המקומית
+  (ללא תלות ברשת), דרך לוח השנה הסעודי מסונן לחגי Eid בלבד.
+
+get_jewish_holidays/get_christian_holidays/get_muslim_holidays מעלות חריגה
+בכשל. get_all_holidays היא הפונקציה המשותפת שקוראת לשלושתן בנפרד (כשל באחת
+לא מפיל את השאר) - זו הפונקציה שיש לייבא ולהשתמש בה בכל מקום שצריך "כל
+החגים", כדי לא לשכפל את לוגיקת האיסוף/הבליעה (advisor.py ו-pages/2_לוח_שנה.py
+שניהם משתמשים בה).
 """
 import datetime as dt
 
 import holidays
+import httpx
+import streamlit as st
 
-# שמות באנגלית של חגי איסלאם היחידים שרלוונטיים לנו מתוך לוח השנה של
-# ערב הסעודית (המנוע החישובי בחבילה זהה לכל המדינות המוסלמיות) - שאר
-# הרשומות שם הן חגים אזרחיים/לאומיים שלא נוגעים לענייננו.
+HEBCAL_URL = "https://www.hebcal.com/hebcal"
+NAGER_URL = "https://date.nager.at/api/v3/publicholidays"
+CHRISTIAN_COUNTRY = "IT"
+
 _MUSLIM_KEYWORDS = ("Eid", "Arafah")
 
-# שמות חגים אזרחיים איטלקיים שיש לסנן החוצה, כדי להשאיר רק חגים נוצריים-דתיים.
-_CHRISTIAN_CIVIL_NAMES = {
-    "New Year's Day",
-    "Liberation Day",
-    "Labor Day",
-    "Republic Day",
+# מטא-דאטה תצוגתית לכל דת - צבע וסמל לשימוש עקבי בכל מקום שמציג חגים (עמוד
+# לוח השנה, ובעתיד כל תצוגה נוספת).
+RELIGION_META = {
+    "jewish": {"label": "יהודי", "icon": "✡️", "color": "#2563eb"},
+    "muslim": {"label": "מוסלמי", "icon": "☪️", "color": "#16a34a"},
+    "christian": {"label": "נוצרי", "icon": "✝️", "color": "#dc2626"},
 }
 
 
-def _years_in_range(date_from: dt.date, date_to: dt.date) -> list[int]:
-    return list(range(date_from.year, date_to.year + 1))
+def get_jewish_holidays(date_from: str, date_to: str) -> list[dict]:
+    resp = httpx.get(
+        HEBCAL_URL,
+        params={
+            "v": "1",
+            "cfg": "json",
+            "maj": "on",
+            "min": "on",
+            "mod": "on",
+            "i": "on",  # לוח חגים כפי שנהוג בישראל
+            "start": date_from,
+            "end": date_to,
+        },
+        timeout=10,
+    )
+    resp.raise_for_status()
+    items = resp.json().get("items", [])
+    return [
+        {"date": it["date"], "name": it.get("title", ""), "religion": "jewish"}
+        for it in items
+        if it.get("category") == "holiday"
+    ]
 
 
-def get_holidays(date_from: str, date_to: str) -> list[dict]:
-    """מחזיר רשימת חגים ממוינת לפי תאריך, בפורמט
-    [{"date": "YYYY-MM-DD", "name": str, "religion": "jewish"|"muslim"|"christian"}]."""
+def get_christian_holidays(date_from: str, date_to: str) -> list[dict]:
     start = dt.date.fromisoformat(date_from)
     end = dt.date.fromisoformat(date_to)
-    years = _years_in_range(start, end)
-
     results: list[dict] = []
+    with httpx.Client(timeout=10) as client:
+        for year in range(start.year, end.year + 1):
+            resp = client.get(f"{NAGER_URL}/{year}/{CHRISTIAN_COUNTRY}")
+            resp.raise_for_status()
+            for item in resp.json():
+                d = dt.date.fromisoformat(item["date"])
+                if start <= d <= end:
+                    results.append(
+                        {
+                            "date": item["date"],
+                            "name": item.get("localName") or item.get("name"),
+                            "religion": "christian",
+                        }
+                    )
+    return results
 
-    for date_, name in holidays.Israel(years=years).items():
-        if start <= date_ <= end:
-            results.append({"date": date_.isoformat(), "name": name, "religion": "jewish"})
 
+def get_muslim_holidays(date_from: str, date_to: str) -> list[dict]:
+    start = dt.date.fromisoformat(date_from)
+    end = dt.date.fromisoformat(date_to)
+    years = list(range(start.year, end.year + 1))
+    results = []
     for date_, name in holidays.SaudiArabia(years=years).items():
         if start <= date_ <= end and any(kw in name for kw in _MUSLIM_KEYWORDS):
             results.append({"date": date_.isoformat(), "name": name, "religion": "muslim"})
-
-    for date_, name in holidays.Italy(years=years).items():
-        if start <= date_ <= end and name not in _CHRISTIAN_CIVIL_NAMES:
-            results.append({"date": date_.isoformat(), "name": name, "religion": "christian"})
-
-    results.sort(key=lambda r: r["date"])
     return results
+
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def get_all_holidays(date_from: str, date_to: str) -> tuple[list[dict], list[str]]:
+    """קורא לשלושת המקורות בנפרד - כשל באחד (רשת, API לא זמין) לא מונע
+    מהשאר. מחזיר (חגים ממוינים לפי תאריך, רשימת תיאורי כשל למקורות שנכשלו)."""
+    sources = [
+        ("חגים יהודיים (Hebcal)", get_jewish_holidays),
+        ("חגים נוצריים (Nager.Date)", get_christian_holidays),
+        ("חגים מוסלמיים", get_muslim_holidays),
+    ]
+    results: list[dict] = []
+    degraded: list[str] = []
+    for label, fn in sources:
+        try:
+            results.extend(fn(date_from, date_to))
+        except Exception as e:
+            degraded.append(f"{label}: {type(e).__name__}: {e}")
+    results.sort(key=lambda h: h["date"])
+    return results, degraded
