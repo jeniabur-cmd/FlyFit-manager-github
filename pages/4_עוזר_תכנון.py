@@ -18,8 +18,12 @@ if not advisor.is_configured():
 if "advisor_history" not in st.session_state:
     st.session_state["advisor_history"] = []
 
-if st.button("🗑️ נקה שיחה"):
+col1, col2 = st.columns(2)
+if col1.button("🗑️ נקה שיחה"):
     st.session_state["advisor_history"] = []
+    st.rerun()
+if col2.button("🔄 רענן נתוני הקשר", help="נקה מטמון של עד שעה - השתמשו אחרי שינוי כמו שיתוף יומן Google מחדש"):
+    advisor.clear_context_cache()
     st.rerun()
 
 for msg in st.session_state["advisor_history"]:

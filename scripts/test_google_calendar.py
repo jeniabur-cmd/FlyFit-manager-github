@@ -1,6 +1,6 @@
-"""בדיקת גישה ל-Google Calendar API דרך Service Account: שולף את 5 האירועים
-הקרובים מהיומן האישי ומיומן הסטודיו, כדי לוודא שהחיבור והשיתוף מוגדרים נכון
-לפני שבונים עליו את הצ'אטבוט.
+"""בדיקת גישה ל-Google Calendar API דרך Service Account: שולף עד אירוע אחד
+מהיומן האישי ומיומן הסטודיו, ומדפיס לכל יומן בנפרד הצלחה/כישלון ברור, כדי
+לוודא שהחיבור והשיתוף מוגדרים נכון לפני שבונים עליו את הצ'אטבוט.
 
 פרטי ה-Service Account נקראים אך ורק מהקובץ .streamlit/gcp_service_account.json
 (לא מ-secrets.toml, ולא מוזנים בקוד) - הקובץ מכיל מפתח פרטי ותוכנו לעולם לא
@@ -8,6 +8,7 @@
 
 הרצה: python scripts/test_google_calendar.py
 """
+import json
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -23,6 +24,8 @@ from googleapiclient.errors import HttpError
 SERVICE_ACCOUNT_FILE = Path(__file__).resolve().parent.parent / ".streamlit" / "gcp_service_account.json"
 SCOPES = ["https://www.googleapis.com/auth/calendar.readonly"]
 
+# זהים בכוונה לקבועים PERSONAL_CALENDAR_ID / STUDIO_CALENDAR_ID ב-google_calendar.py
+# (שם הם קבועים בקוד, לא נקראים מ-st.secrets - אין אפשרות להחלפה/טעות-הקלדה דרך secrets).
 CALENDARS = {
     "אישי (jeniabur@gmail.com)": "jeniabur@gmail.com",
     "סטודיו (flyfit03@gmail.com)": "flyfit03@gmail.com",
@@ -35,13 +38,20 @@ def get_service():
             f"קובץ ה-Service Account לא נמצא ב-{SERVICE_ACCOUNT_FILE}. "
             "שמרו שם את קובץ ה-JSON שהורדתם מ-Google Cloud Console."
         )
+    raw = json.loads(SERVICE_ACCOUNT_FILE.read_text(encoding="utf-8"))
+    client_email = raw.get("client_email", "(לא נמצא שדה client_email בקובץ)")
+    print(f"client_email שנטען מה-Service Account JSON: {client_email}")
+    print(f"(נתיב הקובץ: {SERVICE_ACCOUNT_FILE})\n")
+
     creds = service_account.Credentials.from_service_account_file(
         str(SERVICE_ACCOUNT_FILE), scopes=SCOPES
     )
+    # לא משתמשים ב-st.cache_resource כאן בכוונה - זהו סקריפט חד-פעמי, לא ריצת
+    # Streamlit, כדי לוודא שאין שום קאש חוצץ בין ריצה לריצה בבדיקה הזו.
     return build("calendar", "v3", credentials=creds, cache_discovery=False)
 
 
-def list_upcoming_events(service, calendar_id: str, max_results: int = 5) -> list[dict]:
+def list_upcoming_events(service, calendar_id: str, max_results: int = 1) -> list[dict]:
     now = datetime.now(timezone.utc).isoformat()
     result = (
         service.events()
@@ -88,27 +98,23 @@ def main() -> int:
     exit_code = 0
     for label, calendar_id in CALENDARS.items():
         print(f"\n--- {label} ---")
+        print(f"Calendar ID שנשלח בבקשה: {calendar_id!r}")
         try:
             events = list_upcoming_events(service, calendar_id)
         except HttpError as e:
-            print(describe_http_error(calendar_id, e), file=sys.stderr)
+            print(f"❌ נכשל: {describe_http_error(calendar_id, e)}")
+            print(f"   שגיאה מלאה: HTTP {e.resp.status if e.resp else '?'} - {e.content!r}")
             exit_code = 1
             continue
         except Exception as e:
-            print(
-                f'שגיאה לא צפויה ביומן "{calendar_id}": {type(e).__name__}: {e}',
-                file=sys.stderr,
-            )
+            print(f"❌ נכשל: שגיאה לא צפויה ({type(e).__name__}): {e}")
             exit_code = 1
             continue
 
-        if not events:
-            print("אין אירועים קרובים ביומן זה.")
-            continue
-
+        print(f"✅ הצלחה: החיבור ליומן \"{calendar_id}\" עובד, נמצאו {len(events)} אירוע/ים קרוב/ים.")
         for ev in events:
             start = ev["start"].get("dateTime", ev["start"].get("date"))
-            print(f"- {ev.get('summary', '(ללא כותרת)')} | {start}")
+            print(f"  - {ev.get('summary', '(ללא כותרת)')} | {start}")
 
     return exit_code
 

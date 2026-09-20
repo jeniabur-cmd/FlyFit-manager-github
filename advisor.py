@@ -131,6 +131,13 @@ def _gather_context(date_from: str, date_to: str) -> tuple[str, list[str]]:
     return system_prompt, degraded
 
 
+def clear_context_cache() -> None:
+    """מנקה את מטמון _gather_context (ttl=3600) - יש לקרוא לזה אחרי שינוי
+    שרלוונטי לאחד המקורות (למשל שיתוף יומן Google מחדש), כדי שלא להמתין
+    לפקיעת ה-cache כדי לראות את הנתונים המעודכנים."""
+    _gather_context.clear()
+
+
 def chat(history: list[dict], user_message: str) -> tuple[str, list[str]]:
     """history: הודעות עבר בפורמט {"role": "user"/"assistant", "content": str}.
     מחזיר (תשובת הטקסט הסופית, רשימת מקורות שהתנוונו בקריאה הזו)."""

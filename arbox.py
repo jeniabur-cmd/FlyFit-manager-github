@@ -81,6 +81,7 @@ def _map_row(row: dict) -> dict:
         "instructor_name": _staff_name(row.get("staff_member")),
         "capacity": _to_int(row.get("max_participants")),
         "booked_count": _to_int(row.get("registration_count")),
+        "status": "scheduled",
         "synced_at": datetime.now(db.TZ).isoformat(),
     }
 
@@ -88,6 +89,13 @@ def _map_row(row: dict) -> dict:
 def sync_schedule(days_ahead: int = SCHEDULE_DAYS_AHEAD) -> int:
     """שולף מ-Arbox ומבצע upsert (לפי arbox_id+date) לטבלת arbox_classes.
     לא מוחק שורות קיימות - רק מוסיף/מעדכן, כך שנשמרת היסטוריית תפוסה.
+
+    ל-API של Arbox אין שדה שמציין ביטול - שיעור שבוטל פשוט נעלם מהתשובה.
+    לכן, אחרי ה-upsert, כל שורה שהייתה כבר בטווח שסונכרן אבל לא הופיעה
+    בתשובה הנוכחית מסומנת status='cancelled' (לא נמחקת). אם ה-API החזיר
+    אפס שורות (כשל/תקלה זמנית), מדלגים על שלב הסימון לגמרי כדי לא לסמן
+    בטעות את כל השיעורים הקיימים כמבוטלים.
+
     מחזיר את מספר השורות שנשלחו לעדכון."""
     today = datetime.now(db.TZ).date()
     from_date = today.isoformat()
@@ -99,6 +107,24 @@ def sync_schedule(days_ahead: int = SCHEDULE_DAYS_AHEAD) -> int:
         return 0
 
     db.get_client().table("arbox_classes").upsert(rows, on_conflict="arbox_id,date").execute()
+
+    fetched_pairs = {(r["arbox_id"], r["date"]) for r in rows}
+    existing = (
+        db.get_client()
+        .table("arbox_classes")
+        .select("arbox_id,date,status")
+        .gte("date", from_date)
+        .lte("date", to_date)
+        .execute()
+        .data
+    )
+    for existing_row in existing:
+        pair = (existing_row["arbox_id"], existing_row["date"])
+        if pair not in fetched_pairs and existing_row.get("status") != "cancelled":
+            db.get_client().table("arbox_classes").update({"status": "cancelled"}).eq(
+                "arbox_id", existing_row["arbox_id"]
+            ).eq("date", existing_row["date"]).execute()
+
     return len(rows)
 
 
@@ -132,11 +158,14 @@ def maybe_sync_schedule() -> None:
 
 
 def get_classes_for_date(date: str) -> list[dict]:
+    """שיעורים לא-מבוטלים בלבד (שורות שבוטלו נשארות בטבלה להיסטוריה, ראו
+    sync_schedule, אבל לא מוצגות כברירת מחדל)."""
     return (
         db.get_client()
         .table("arbox_classes")
         .select("*")
         .eq("date", date)
+        .neq("status", "cancelled")
         .order("time")
         .execute()
         .data
@@ -144,12 +173,14 @@ def get_classes_for_date(date: str) -> list[dict]:
 
 
 def get_classes_between(date_from: str, date_to: str) -> list[dict]:
+    """שיעורים לא-מבוטלים בלבד, ראו הערה ב-get_classes_for_date."""
     return (
         db.get_client()
         .table("arbox_classes")
         .select("*")
         .gte("date", date_from)
         .lte("date", date_to)
+        .neq("status", "cancelled")
         .order("date")
         .order("time")
         .execute()
