@@ -8,11 +8,13 @@
 וההודעה הידידותית על "מקור נתונים לא זמין" מתבצעות מרוכז ב-advisor.py, כדי
 שאפשר יהיה להציג בממשק אילו מקורות התנוונו.
 """
-from datetime import datetime, timezone
+from datetime import datetime
 
 import streamlit as st
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
+
+import db
 
 PERSONAL_CALENDAR_ID = "jeniabur@gmail.com"
 STUDIO_CALENDAR_ID = "flyfit03@gmail.com"
@@ -33,9 +35,12 @@ def get_events(calendar_id: str, date_from: str, date_to: str) -> list[dict]:
     """מחזיר אירועים מיומן נתון בטווח התאריכים, בפורמט
     [{"start": iso-str, "end": iso-str, "summary": str}]. מעלה חריגה בכשל."""
     service = _get_service()
-    time_min = datetime.fromisoformat(date_from).replace(tzinfo=timezone.utc).isoformat()
+    # date_from/date_to הם תאריכים לפי שעון ישראל (Asia/Jerusalem) - חייבים
+    # להיות מתויגים כך, לא כ-UTC, אחרת חצות/סוף-יום מקומיים זזים בשעתיים-שלוש
+    # (הפרש UTC+2/+3) והחלון בפועל מפספס אירועים מוקדמים ב-date_from.
+    time_min = datetime.fromisoformat(date_from).replace(tzinfo=db.TZ).isoformat()
     time_max = datetime.fromisoformat(date_to).replace(
-        hour=23, minute=59, second=59, tzinfo=timezone.utc
+        hour=23, minute=59, second=59, tzinfo=db.TZ
     ).isoformat()
     result = (
         service.events()

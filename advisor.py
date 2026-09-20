@@ -6,11 +6,24 @@
 
 אם OPENAI_API_KEY לא מוגדר, is_configured() מחזיר False והעמוד לא מציג צ'אט.
 """
+import logging
+import sys
 from datetime import datetime, timedelta
 from pathlib import Path
 
 import streamlit as st
 from openai import OpenAI
+
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+if not logger.handlers:
+    _log_stream = sys.stderr
+    if hasattr(_log_stream, "reconfigure"):
+        _log_stream.reconfigure(encoding="utf-8")  # אחרת עברית בלוג יוצאת כ-\uXXXX בקונסולת Windows
+    _handler = logging.StreamHandler(_log_stream)
+    _handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s"))
+    logger.addHandler(_handler)
+    logger.propagate = False
 
 import arbox
 import db
@@ -51,7 +64,15 @@ def _safe(label: str, fn, *args):
         return None, f"{label}: {type(e).__name__}: {e}"
 
 
-def _format_tasks(tasks: list[dict]) -> str:
+# מוצג למודל כשמקור נתונים נכשל בשליפה - חייב להיות שונה בבירור מ"(אין ...
+# בטווח)" (שמשמעו נשלף בהצלחה ופשוט ריק), אחרת המודל עלול לפרש כשל שקט כאילו
+# היומן/הטבלה באמת ריקים, ולומר בטעות "אין לך שום דבר מתוזמן".
+_FETCH_FAILED = "(שגיאה בשליפה - המקור הזה לא היה זמין הפעם, אין להניח שהוא ריק)"
+
+
+def _format_tasks(tasks: list[dict] | None, err: str | None) -> str:
+    if err:
+        return _FETCH_FAILED
     if not tasks:
         return "(אין משימות בטווח)"
     lines = []
@@ -62,7 +83,9 @@ def _format_tasks(tasks: list[dict]) -> str:
     return "\n".join(lines)
 
 
-def _format_arbox(classes: list[dict]) -> str:
+def _format_arbox(classes: list[dict] | None, err: str | None) -> str:
+    if err:
+        return _FETCH_FAILED
     if not classes:
         return "(אין שיעורי Arbox בטווח)"
     lines = []
@@ -76,7 +99,9 @@ def _format_arbox(classes: list[dict]) -> str:
     return "\n".join(lines)
 
 
-def _format_events(events: list[dict]) -> str:
+def _format_events(events: list[dict] | None, err: str | None) -> str:
+    if err:
+        return _FETCH_FAILED
     if not events:
         return "(אין אירועים בטווח)"
     return "\n".join(f"- {e['start']}: {e['summary']}" for e in events)
@@ -112,15 +137,25 @@ def _gather_context(date_from: str, date_to: str) -> tuple[str, list[str]]:
     now = datetime.now(db.TZ)
     system_prompt = (
         "את/ה עוזר/ת תכנון ולו\"ז לסטודיו כושר אווירי בשם FlyFit. עונה בעברית, "
-        "תמציתי וממוקד, ומתבסס אך ורק על הנתונים שסופקו למטה - אסור להמציא "
-        "פרטי לו\"ז שלא מופיעים כאן. אם משהו לא ידוע מהנתונים - יש לומר זאת "
-        "במפורש ולא לנחש.\n\n"
-        f"התאריך הנוכחי: {now.strftime('%Y-%m-%d')} ({now.strftime('%A')}).\n"
+        "תמציתי וממוקד.\n\n"
+        "יש לך גישה אמיתית ומעודכנת (נשלפה ממש עכשיו, ברגע הזה, לפני כתיבת "
+        "ההודעה הזו) לנתוני הלו\"ז שלמטה: משימות הסטודיו מה-DB, לוח שיעורי "
+        "Arbox, יומן Google האישי, יומן Google של הסטודיו, וחגים. זו אינה "
+        "ידיעה כללית או ניחוש - אלו הנתונים בפועל, ואת/ה אמור/ה להתייחס אליהם "
+        "כאילו יש לך גישה חיה ליומנים ולמשימות, כי יש לך. לעולם אל תגיד/י "
+        "שאין לך גישה ליומן Google או למשימות - יש לך, והנתונים למטה הם היא. "
+        "אם קטע מסוים ריק (למשל \"(אין אירועים בטווח)\") המשמעות היא שאין "
+        "בו אירועים בטווח שנבדק, ולא שאין לך גישה אליו - חשוב להבחין בין השניים "
+        "כשעונים על שאלה כמו \"יש לך גישה ליומן שלי?\".\n\n"
+        "מתבסס/ת אך ורק על הנתונים שסופקו למטה - אסור להמציא פרטי לו\"ז שלא "
+        "מופיעים כאן. אם פרט ספציפי לא מופיע בנתונים - יש לומר זאת במפורש "
+        "(\"זה לא מופיע בנתונים שיש לי\") ולא לנחש או להמציא.\n\n"
+        f"התאריך הנוכחי (עכשיו ממש): {now.strftime('%Y-%m-%d')} ({now.strftime('%A')}).\n"
         f"חלון הנתונים שנאסף: {date_from} עד {date_to}.\n\n"
-        f"משימות הסטודיו:\n{_format_tasks(tasks or [])}\n\n"
-        f"לוח שיעורים (Arbox):\n{_format_arbox(arbox_classes or [])}\n\n"
-        f"יומן Google אישי:\n{_format_events(personal_events or [])}\n\n"
-        f"יומן Google של הסטודיו:\n{_format_events(studio_events or [])}\n\n"
+        f"משימות הסטודיו:\n{_format_tasks(tasks, tasks_err)}\n\n"
+        f"לוח שיעורים (Arbox):\n{_format_arbox(arbox_classes, arbox_err)}\n\n"
+        f"יומן Google אישי:\n{_format_events(personal_events, personal_err)}\n\n"
+        f"יומן Google של הסטודיו:\n{_format_events(studio_events, studio_err)}\n\n"
         f"חגים (יהודיים/נוצריים/מוסלמיים):\n{_format_holidays(all_holidays)}"
         f"{notes_block}"
     )
@@ -138,13 +173,17 @@ def clear_context_cache() -> None:
     _gather_context.clear()
 
 
-def chat(history: list[dict], user_message: str) -> tuple[str, list[str]]:
+def chat(history: list[dict], user_message: str) -> tuple[str, list[str], str]:
     """history: הודעות עבר בפורמט {"role": "user"/"assistant", "content": str}.
-    מחזיר (תשובת הטקסט הסופית, רשימת מקורות שהתנוונו בקריאה הזו)."""
+    מחזיר (תשובת הטקסט הסופית, רשימת מקורות שהתנוונו בקריאה הזו, ה-system
+    prompt המלא שנשלח - למטרות דיבוג/תצוגה בממשק)."""
     now = datetime.now(db.TZ)
     date_from = now.date().isoformat()
     date_to = (now.date() + timedelta(days=CONTEXT_DAYS_AHEAD)).isoformat()
     system_prompt, degraded = _gather_context(date_from, date_to)
+    logger.info("advisor system prompt for this request:\n%s", system_prompt)
+    if degraded:
+        logger.warning("advisor degraded sources this request: %s", degraded)
 
     client = _client()
     messages = (
@@ -154,4 +193,4 @@ def chat(history: list[dict], user_message: str) -> tuple[str, list[str]]:
     )
     response = client.chat.completions.create(model=MODEL, messages=messages)
     reply = response.choices[0].message.content or ""
-    return reply, degraded
+    return reply, degraded, system_prompt

@@ -38,16 +38,25 @@ if user_message:
 
     reply = None
     degraded: list[str] = []
+    system_prompt = ""
     with st.chat_message("assistant"):
         with st.spinner("אוסף נתונים ומנסח תשובה..."):
             try:
-                reply, degraded = advisor.chat(st.session_state["advisor_history"][:-1], user_message)
+                reply, degraded, system_prompt = advisor.chat(
+                    st.session_state["advisor_history"][:-1], user_message
+                )
             except Exception as e:
                 st.error(f"שגיאה בפנייה ל-OpenAI: {e}")
         if reply:
             st.markdown(reply)
         if degraded:
-            st.caption("⚠️ מקורות שלא היו זמינים הפעם: " + " | ".join(degraded))
+            st.warning("⚠️ מקורות שלא היו זמינים הפעם (התשובה עשויה להיות חסרה): " + " | ".join(degraded))
 
     if reply:
         st.session_state["advisor_history"].append({"role": "assistant", "content": reply})
+    if system_prompt:
+        st.session_state["advisor_last_prompt"] = system_prompt
+
+if st.session_state.get("advisor_last_prompt"):
+    with st.expander("🔍 System Prompt המדויק ששימש בתשובה האחרונה (דיבוג)"):
+        st.code(st.session_state["advisor_last_prompt"], language=None)
