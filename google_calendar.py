@@ -1,14 +1,14 @@
 """גישה ליומנים ב-Google Calendar (אישי + סטודיו) דרך Service Account (נבדק
 ועובד - ראו scripts/test_google_calendar.py). פרטי ההזדהות נקראים אך ורק
-מהקובץ .streamlit/gcp_service_account.json - תוכנו לעולם לא מודפס/נשמר
-במקום אחר.
+מ-st.secrets["gcp_service_account"] - אותו מקור מקומית (.streamlit/secrets.toml)
+ובענן (Streamlit Cloud secrets), כך שאין שני נתיבים שונים לתחזק. תוכנם לעולם
+לא מודפס/נשמר במקום אחר.
 
-הפונקציות כאן מעלות חריגה בכשל (קובץ חסר, אין הרשאה, בעיית רשת) - הבליעה
+הפונקציות כאן מעלות חריגה בכשל (secrets חסר, אין הרשאה, בעיית רשת) - הבליעה
 וההודעה הידידותית על "מקור נתונים לא זמין" מתבצעות מרוכז ב-advisor.py, כדי
 שאפשר יהיה להציג בממשק אילו מקורות התנוונו.
 """
 from datetime import datetime, timezone
-from pathlib import Path
 
 import streamlit as st
 from google.oauth2 import service_account
@@ -16,16 +16,15 @@ from googleapiclient.discovery import build
 
 PERSONAL_CALENDAR_ID = "jeniabur@gmail.com"
 STUDIO_CALENDAR_ID = "flyfit03@gmail.com"
-SERVICE_ACCOUNT_FILE = Path(__file__).resolve().parent / ".streamlit" / "gcp_service_account.json"
 SCOPES = ["https://www.googleapis.com/auth/calendar.readonly"]
 
 
 @st.cache_resource
 def _get_service():
-    if not SERVICE_ACCOUNT_FILE.exists():
-        raise RuntimeError(f"קובץ ה-Service Account לא נמצא ב-{SERVICE_ACCOUNT_FILE}")
-    creds = service_account.Credentials.from_service_account_file(
-        str(SERVICE_ACCOUNT_FILE), scopes=SCOPES
+    if "gcp_service_account" not in st.secrets:
+        raise RuntimeError('חסר בלוק [gcp_service_account] ב-secrets (מקומית: .streamlit/secrets.toml, בענן: Streamlit Cloud secrets).')
+    creds = service_account.Credentials.from_service_account_info(
+        dict(st.secrets["gcp_service_account"]), scopes=SCOPES
     )
     return build("calendar", "v3", credentials=creds, cache_discovery=False)
 

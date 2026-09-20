@@ -2,26 +2,25 @@
 מהיומן האישי ומיומן הסטודיו, ומדפיס לכל יומן בנפרד הצלחה/כישלון ברור, כדי
 לוודא שהחיבור והשיתוף מוגדרים נכון לפני שבונים עליו את הצ'אטבוט.
 
-פרטי ה-Service Account נקראים אך ורק מהקובץ .streamlit/gcp_service_account.json
-(לא מ-secrets.toml, ולא מוזנים בקוד) - הקובץ מכיל מפתח פרטי ותוכנו לעולם לא
-מודפס.
+פרטי ה-Service Account נקראים אך ורק מ-st.secrets["gcp_service_account"] - אותו
+מקור בדיוק שממנו google_calendar.py קורא אותם (מקומית: .streamlit/secrets.toml,
+בענן: Streamlit Cloud secrets), כדי שהבדיקה תשקף את הנתיב האמיתי. תוכנם לעולם
+לא מודפס.
 
 הרצה: python scripts/test_google_calendar.py
 """
-import json
 import sys
 from datetime import datetime, timezone
-from pathlib import Path
 
 for _stream in (sys.stdout, sys.stderr):
     if hasattr(_stream, "reconfigure"):
         _stream.reconfigure(encoding="utf-8")
 
+import streamlit as st
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 
-SERVICE_ACCOUNT_FILE = Path(__file__).resolve().parent.parent / ".streamlit" / "gcp_service_account.json"
 SCOPES = ["https://www.googleapis.com/auth/calendar.readonly"]
 
 # זהים בכוונה לקבועים PERSONAL_CALENDAR_ID / STUDIO_CALENDAR_ID ב-google_calendar.py
@@ -33,19 +32,17 @@ CALENDARS = {
 
 
 def get_service():
-    if not SERVICE_ACCOUNT_FILE.exists():
+    if "gcp_service_account" not in st.secrets:
         raise RuntimeError(
-            f"קובץ ה-Service Account לא נמצא ב-{SERVICE_ACCOUNT_FILE}. "
-            "שמרו שם את קובץ ה-JSON שהורדתם מ-Google Cloud Console."
+            'חסר בלוק [gcp_service_account] ב-secrets. מקומית: הוסיפו אותו ל-'
+            ".streamlit/secrets.toml. בענן: הגדירו אותו תחת Settings -> Secrets "
+            "באפליקציה ב-Streamlit Cloud."
         )
-    raw = json.loads(SERVICE_ACCOUNT_FILE.read_text(encoding="utf-8"))
-    client_email = raw.get("client_email", "(לא נמצא שדה client_email בקובץ)")
-    print(f"client_email שנטען מה-Service Account JSON: {client_email}")
-    print(f"(נתיב הקובץ: {SERVICE_ACCOUNT_FILE})\n")
+    info = dict(st.secrets["gcp_service_account"])
+    client_email = info.get("client_email", "(לא נמצא שדה client_email ב-secrets)")
+    print(f"client_email שנטען מ-st.secrets['gcp_service_account']: {client_email}")
 
-    creds = service_account.Credentials.from_service_account_file(
-        str(SERVICE_ACCOUNT_FILE), scopes=SCOPES
-    )
+    creds = service_account.Credentials.from_service_account_info(info, scopes=SCOPES)
     # לא משתמשים ב-st.cache_resource כאן בכוונה - זהו סקריפט חד-פעמי, לא ריצת
     # Streamlit, כדי לוודא שאין שום קאש חוצץ בין ריצה לריצה בבדיקה הזו.
     return build("calendar", "v3", credentials=creds, cache_discovery=False)
@@ -75,13 +72,13 @@ def describe_http_error(calendar_id: str, error: HttpError) -> str:
             "מחזיר 404 גם כשה-Calendar ID נכון אבל היומן פשוט לא שותף עם "
             "ה-Service Account בכלל (כדי לא לחשוף קיום של יומנים פרטיים). בדקו "
             "שתיים: (1) שיתפתם את היומן הזה עם כתובת ה-Service Account (שדה "
-            "client_email בקובץ ה-JSON), (2) שה-Calendar ID מדויק (בהגדרות "
+            "client_email ב-secrets), (2) שה-Calendar ID מדויק (בהגדרות "
             "היומן -> Integrate calendar -> Calendar ID)."
         )
     if status in (401, 403):
         return (
             f'אין הרשאה ליומן "{calendar_id}" ({status}). ודאו שהיומן שותף עם '
-            "כתובת ה-Service Account (שדה client_email בקובץ ה-JSON) עם לפחות "
+            "כתובת ה-Service Account (שדה client_email ב-secrets) עם לפחות "
             'הרשאת "לראות את כל פרטי האירוע", דרך Google Calendar -> הגדרות '
             "היומן הזה -> שיתוף עם אנשים ספציפיים."
         )

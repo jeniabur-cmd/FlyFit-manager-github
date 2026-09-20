@@ -111,9 +111,11 @@ migrations/002_arbox_classes.sql סכימת טבלת לוח השיעורים מ-
   נפרדים (מורכב מדי) או context קבוע (לא מכסה שאלות על טווחים רחוקים).
 - הערות קבועות מ-`DATA/mydates.docx` (ימים/תקופות חשובות לסטודיו) נכללות
   ישירות ב-system prompt בכל שיחה.
-- `google_calendar.py`: גישה ליומן הסטודיו (`flyfit03@gmail.com`) בלבד, דרך
-  Service Account (`.streamlit/gcp_service_account.json`, לא ב-git). היומן
-  האישי אינו משותף עם ה-Service Account בכוונה ולכן אינו נתמך כרגע.
+- `google_calendar.py`: גישה ליומן האישי (`jeniabur@gmail.com`) וליומן הסטודיו
+  (`flyfit03@gmail.com`), דרך Service Account שפרטיו נקראים מ-
+  `st.secrets["gcp_service_account"]` (זהה בין מקומי לענן - ראו
+  `.streamlit/secrets.toml.example`). כל יומן רלוונטי חייב להיות משותף עם
+  כתובת ה-`client_email` של ה-Service Account.
 - `religious_calendar.py`: חגים יהודיים/מוסלמיים/נוצריים דרך חבילת `holidays`
   (ללא מפתח API) - `Israel()`, `SaudiArabia()` מסונן ל-Eid, `Italy()` מסונן
   לחגים דתיים.
