@@ -2,8 +2,9 @@
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
-import streamlit as st
 from supabase import create_client, Client
+
+from .config import env, ttl_cache
 
 TZ = ZoneInfo("Asia/Jerusalem")
 
@@ -12,11 +13,11 @@ def today_str() -> str:
     return datetime.now(TZ).date().isoformat()
 
 
-@st.cache_resource
+@ttl_cache()
 def get_client() -> Client:
     return create_client(
-        st.secrets["SUPABASE_URL"],
-        st.secrets["SUPABASE_SERVICE_ROLE_KEY"],
+        env("SUPABASE_URL"),
+        env("SUPABASE_SERVICE_ROLE_KEY"),
     )
 
 
@@ -73,7 +74,7 @@ def generate_today_tasks_from_templates() -> int:
 
 
 def run_daily_maintenance() -> None:
-    """להריץ בראש כל עמוד: גלגול משימות שעברו + יצירת משימות מתבניות פעילות."""
+    """להריץ בראש כל טעינת עמוד: גלגול משימות שעברו + יצירת משימות מתבניות פעילות."""
     rollover_overdue_tasks()
     generate_today_tasks_from_templates()
 

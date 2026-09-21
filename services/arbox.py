@@ -8,9 +8,9 @@ GET https://arboxserver.arboxapp.com/api/public/v3/schedule, אימות בכות
 from datetime import datetime, timedelta
 
 import httpx
-import streamlit as st
 
-import db
+from . import db
+from .config import env
 
 API_BASE = "https://arboxserver.arboxapp.com/api/public/v3"
 SYNC_INTERVAL = timedelta(hours=1)
@@ -19,14 +19,14 @@ PAGE_LIMIT = 500
 
 
 def _api_key() -> str | None:
-    return st.secrets.get("ARBOX_API_KEY")
+    return env("ARBOX_API_KEY")
 
 
 def fetch_schedule(from_date: str, to_date: str) -> list[dict]:
     """שולף מ-Arbox את כל השיעורים בטווח התאריכים (Y-m-d), כולל דפדוף."""
     api_key = _api_key()
     if not api_key:
-        raise RuntimeError("ARBOX_API_KEY לא מוגדר ב-secrets")
+        raise RuntimeError("ARBOX_API_KEY לא מוגדר במשתני הסביבה")
 
     headers = {"Accept": "application/json", "api-key": api_key}
     all_rows: list[dict] = []

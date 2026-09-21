@@ -1,0 +1,423 @@
+/* ---------- design tokens ---------- */
+
+:root {
+    --bg: #0d1117;
+    --surface: #161b22;
+    --surface-hover: #1c2330;
+    --border: #30363d;
+    --border-strong: #444c56;
+    --text: #f0f2f5;
+    --text-muted: #9aa4b2;
+    --accent: #3b82f6;
+    --accent-hover: #2f6fe0;
+    --accent-soft: rgba(59, 130, 246, 0.16);
+    --danger: #f85149;
+    --success: #3fb950;
+    --warning: #eab308;
+    --radius-sm: 0.4rem;
+    --radius-md: 0.65rem;
+    --radius-lg: 1rem;
+    --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.3), 0 4px 14px rgba(0, 0, 0, 0.18);
+    --transition: 150ms ease;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    padding: 1.5rem;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, "Segoe UI", Arial, sans-serif;
+    direction: rtl;
+    line-height: 1.5;
+}
+
+main {
+    max-width: 900px;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+/* ---------- כותרת עליונה + ניווט ---------- */
+
+.topbar {
+    max-width: 900px;
+    margin: 0 auto 1.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid var(--border);
+}
+
+h1 {
+    margin: 0;
+    font-size: 1.5rem;
+}
+
+h2 {
+    margin: 0 0 1rem;
+    font-size: 1.15rem;
+}
+
+h3 {
+    margin: 0 0 0.5rem;
+    font-size: 1rem;
+    color: var(--text-muted);
+}
+
+.main-nav {
+    display: flex;
+    gap: 0.25rem;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 0.25rem;
+}
+
+.main-nav a {
+    color: var(--text-muted);
+    text-decoration: none;
+    padding: 0.45rem 1rem;
+    border-radius: var(--radius-sm);
+    font-size: 0.9rem;
+    font-weight: 500;
+    transition: background var(--transition), color var(--transition);
+}
+
+.main-nav a:hover {
+    background: var(--surface-hover);
+    color: var(--text);
+}
+
+.main-nav a.active {
+    background: var(--accent);
+    color: #fff;
+}
+
+/* ---------- כרטיסים ---------- */
+
+.card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 1.5rem;
+    box-shadow: var(--shadow-card);
+}
+
+.empty-note {
+    color: var(--text-muted);
+}
+
+.icon-btn {
+    background: none;
+    border: 1px solid transparent;
+    cursor: pointer;
+    font-size: 1.05rem;
+    color: var(--text);
+    padding: 0.35rem 0.5rem;
+    border-radius: var(--radius-sm);
+    transition: background var(--transition), border-color var(--transition);
+}
+
+.icon-btn:hover {
+    background: var(--surface-hover);
+    border-color: var(--border);
+}
+
+/* ---------- לוח שנה ---------- */
+
+#calendar {
+    max-width: 100%;
+}
+
+.fc {
+    --fc-border-color: var(--border);
+    --fc-page-bg-color: var(--surface);
+    --fc-neutral-bg-color: var(--surface-hover);
+    --fc-list-event-hover-bg-color: var(--surface-hover);
+    --fc-today-bg-color: var(--accent-soft);
+    --fc-button-text-color: var(--text);
+    --fc-button-bg-color: var(--surface-hover);
+    --fc-button-border-color: var(--border);
+    --fc-button-hover-bg-color: var(--border-strong);
+    --fc-button-hover-border-color: var(--border-strong);
+    --fc-button-active-bg-color: var(--accent);
+    --fc-button-active-border-color: var(--accent);
+    color: var(--text);
+    font-size: 0.9rem;
+}
+
+.fc .fc-button {
+    text-transform: none;
+    box-shadow: none !important;
+    font-weight: 500;
+}
+
+.fc .fc-toolbar-title {
+    font-size: 1.2rem;
+    font-weight: 700;
+}
+
+.fc .fc-daygrid-day:hover {
+    background: var(--surface-hover);
+    cursor: pointer;
+}
+
+.fc .fc-day-today {
+    outline: 1px solid var(--accent);
+    outline-offset: -1px;
+}
+
+.fc-theme-standard .fc-popover {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-card);
+}
+
+.fc-theme-standard .fc-popover-header {
+    background: var(--surface-hover);
+}
+
+.day-tooltip {
+    position: fixed;
+    z-index: 1000;
+    background: var(--surface-hover);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-md);
+    padding: 0.6rem 0.85rem;
+    font-size: 0.85rem;
+    max-width: 240px;
+    pointer-events: none;
+    box-shadow: var(--shadow-card);
+}
+
+/* ---------- פאנל יום ---------- */
+
+.day-panel-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.5rem;
+}
+
+.day-panel-header h2 {
+    margin: 0;
+}
+
+.task-list {
+    list-style: none;
+    margin: 1rem 0 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+}
+
+.task-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    padding: 0.75rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    flex-wrap: wrap;
+    transition: border-color var(--transition), background var(--transition);
+}
+
+.task-row:hover {
+    border-color: var(--border-strong);
+    background: rgba(255, 255, 255, 0.015);
+}
+
+.task-row input[type="checkbox"] {
+    margin-top: 0.3rem;
+    width: 1.15rem;
+    height: 1.15rem;
+    accent-color: var(--accent);
+    cursor: pointer;
+}
+
+.task-info {
+    flex: 1;
+    min-width: 140px;
+}
+
+.task-info small {
+    color: var(--text-muted);
+}
+
+.task-notes {
+    color: var(--text-muted);
+    font-size: 0.85rem;
+    margin-top: 0.25rem;
+}
+
+.task-edit-form {
+    flex-basis: 100%;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-top: 0.75rem;
+    padding-top: 0.75rem;
+    border-top: 1px dashed var(--border);
+}
+
+/* ---------- טפסים ---------- */
+
+.task-form, .task-edit-form, .inline-form, #filter-form {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+    align-items: center;
+}
+
+.task-form label {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.85rem;
+    color: var(--text-muted);
+}
+
+.inline-form {
+    margin: 0.5rem 0;
+}
+
+.text-btn {
+    background: none;
+    border: none;
+    color: var(--accent);
+    padding: 0.25rem 0;
+    margin-bottom: 0.75rem;
+    font-weight: 500;
+}
+
+.text-btn:hover {
+    background: none;
+    text-decoration: underline;
+    color: var(--accent-hover);
+}
+
+input, select, button {
+    background: var(--bg);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 0.55rem 0.7rem;
+    font-size: 0.9rem;
+    font-family: inherit;
+    transition: border-color var(--transition), background var(--transition);
+}
+
+input:hover, select:hover {
+    border-color: var(--border-strong);
+}
+
+input:focus, select:focus, button:focus-visible {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.task-form input[type="text"] {
+    flex: 1;
+    min-width: 160px;
+}
+
+button {
+    cursor: pointer;
+    background: var(--accent);
+    border-color: var(--accent);
+    font-weight: 600;
+}
+
+button:hover {
+    background: var(--accent-hover);
+    border-color: var(--accent-hover);
+}
+
+button.btn-secondary, #filter-clear {
+    background: var(--surface-hover);
+    border-color: var(--border);
+    color: var(--text);
+}
+
+button.btn-secondary:hover, #filter-clear:hover {
+    background: var(--border-strong);
+    border-color: var(--border-strong);
+}
+
+/* ---------- צ'אט ---------- */
+
+.chat-messages {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+    max-height: 360px;
+    overflow-y: auto;
+    margin-bottom: 0.75rem;
+    padding-inline-end: 0.25rem;
+}
+
+.chat-msg {
+    padding: 0.6rem 0.9rem;
+    border-radius: var(--radius-md);
+    max-width: 85%;
+    white-space: pre-wrap;
+    line-height: 1.55;
+}
+
+.chat-msg-user {
+    align-self: flex-end;
+    background: var(--accent);
+    color: #fff;
+    border-bottom-left-radius: 0.25rem;
+}
+
+.chat-msg-assistant {
+    align-self: flex-start;
+    background: var(--surface-hover);
+    border: 1px solid var(--border);
+    border-bottom-right-radius: 0.25rem;
+}
+
+.chat-degraded {
+    align-self: flex-start;
+    color: var(--warning);
+    font-size: 0.8rem;
+}
+
+.chat-form {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.chat-form input {
+    flex: 1;
+}
+
+/* ---------- מסכים צרים ---------- */
+
+@media (max-width: 640px) {
+    body {
+        padding: 1rem;
+    }
+
+    .card {
+        padding: 1rem;
+    }
+
+    .topbar {
+        justify-content: center;
+        text-align: center;
+    }
+}

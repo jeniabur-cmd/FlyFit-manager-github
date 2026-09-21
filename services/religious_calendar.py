@@ -10,14 +10,14 @@
 get_jewish_holidays/get_christian_holidays/get_muslim_holidays מעלות חריגה
 בכשל. get_all_holidays היא הפונקציה המשותפת שקוראת לשלושתן בנפרד (כשל באחת
 לא מפיל את השאר) - זו הפונקציה שיש לייבא ולהשתמש בה בכל מקום שצריך "כל
-החגים", כדי לא לשכפל את לוגיקת האיסוף/הבליעה (advisor.py ו-pages/2_לוח_שנה.py
-שניהם משתמשים בה).
+החגים", כדי לא לשכפל את לוגיקת האיסוף/הבליעה.
 """
 import datetime as dt
 
 import holidays
 import httpx
-import streamlit as st
+
+from .config import ttl_cache
 
 HEBCAL_URL = "https://www.hebcal.com/hebcal"
 NAGER_URL = "https://date.nager.at/api/v3/publicholidays"
@@ -25,8 +25,7 @@ CHRISTIAN_COUNTRY = "IT"
 
 _MUSLIM_KEYWORDS = ("Eid", "Arafah")
 
-# מטא-דאטה תצוגתית לכל דת - צבע וסמל לשימוש עקבי בכל מקום שמציג חגים (עמוד
-# לוח השנה, ובעתיד כל תצוגה נוספת).
+# מטא-דאטה תצוגתית לכל דת - צבע וסמל לשימוש עקבי בכל מקום שמציג חגים.
 RELIGION_META = {
     "jewish": {"label": "יהודי", "icon": "✡️", "color": "#2563eb"},
     "muslim": {"label": "מוסלמי", "icon": "☪️", "color": "#16a34a"},
@@ -90,7 +89,7 @@ def get_muslim_holidays(date_from: str, date_to: str) -> list[dict]:
     return results
 
 
-@st.cache_data(ttl=3600, show_spinner=False)
+@ttl_cache(ttl_seconds=3600)
 def get_all_holidays(date_from: str, date_to: str) -> tuple[list[dict], list[str]]:
     """קורא לשלושת המקורות בנפרד - כשל באחד (רשת, API לא זמין) לא מונע
     מהשאר. מחזיר (חגים ממוינים לפי תאריך, רשימת תיאורי כשל למקורות שנכשלו)."""

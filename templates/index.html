@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+
+{% block title %}FlyFit Manager{% endblock %}
+
+{% block extra_head %}
+    <link rel="stylesheet"
+          href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/index.global.min.css">
+{% endblock %}
+
+{% block content %}
+        <!-- לוח שנה: משימות פתוחות + שיעורי Arbox -->
+        <section class="card">
+            <div id="calendar"></div>
+        </section>
+
+        <!-- פאנל ניהול משימות ליום שנלחץ בלוח -->
+        <section id="day-panel" class="card day-panel" hidden>
+            <div class="day-panel-header">
+                <h2 id="day-panel-title">משימות היום</h2>
+                <button id="day-panel-close" type="button" class="icon-btn" aria-label="סגירה">✕</button>
+            </div>
+            <ul id="day-panel-list" class="task-list"></ul>
+            <p id="day-panel-empty" class="empty-note" hidden>אין משימות פתוחות ביום הזה 🎉</p>
+        </section>
+
+        <!-- עוזר תכנון -->
+        <section class="card">
+            <h2>🤖 עוזר תכנון</h2>
+            {% if advisor_enabled %}
+            <div id="chat-messages" class="chat-messages"></div>
+            <form id="chat-form" class="chat-form">
+                <input id="chat-input" type="text" placeholder="כתבו כאן שאלה על תכנון הסטודיו..." autocomplete="off">
+                <button type="submit">שליחה</button>
+            </form>
+            {% else %}
+            <p class="empty-note">כדי להפעיל את העוזר יש להגדיר OPENAI_API_KEY (ראו .env).</p>
+            {% endif %}
+        </section>
+
+        <!-- הוספת משימה -->
+        <section class="card">
+            <h2>➕ הוספת משימה</h2>
+            <form id="add-task-form" class="task-form">
+                <input id="task-title" type="text" placeholder="כותרת המשימה *" required>
+                <select id="task-category">
+                    <option value="">(ללא קטגוריה)</option>
+                    {% for c in categories %}
+                    <option value="{{ c.id }}">{{ c.name }}</option>
+                    {% endfor %}
+                </select>
+                <input id="task-date" type="date" value="{{ today }}" required>
+                <input id="task-time" type="time">
+                <input id="task-notes" type="text" placeholder="הערות">
+                <button type="submit">הוסף משימה</button>
+            </form>
+        </section>
+
+    <div id="day-tooltip" class="day-tooltip" hidden></div>
+{% endblock %}
+
+{% block extra_scripts %}
+    <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/index.global.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@fullcalendar/core@6.1.15/locales-all.global.min.js"></script>
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+{% endblock %}

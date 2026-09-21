@@ -1,33 +1,37 @@
 """גישה ליומנים ב-Google Calendar (אישי + סטודיו) דרך Service Account (נבדק
 ועובד - ראו scripts/test_google_calendar.py). פרטי ההזדהות נקראים אך ורק
-מ-st.secrets["gcp_service_account"] - אותו מקור מקומית (.streamlit/secrets.toml)
-ובענן (Streamlit Cloud secrets), כך שאין שני נתיבים שונים לתחזק. תוכנם לעולם
-לא מודפס/נשמר במקום אחר.
+ממשתנה הסביבה GCP_SERVICE_ACCOUNT_JSON (מחרוזת JSON עם כל שדות ה-Service
+Account, בשורה אחת) - אותו מקור מקומית (.env) ובענן (env vars של הפלטפורמה),
+כך שאין שני נתיבים שונים לתחזק. תוכנם לעולם לא מודפס/נשמר במקום אחר.
 
-הפונקציות כאן מעלות חריגה בכשל (secrets חסר, אין הרשאה, בעיית רשת) - הבליעה
+הפונקציות כאן מעלות חריגה בכשל (env var חסר, אין הרשאה, בעיית רשת) - הבליעה
 וההודעה הידידותית על "מקור נתונים לא זמין" מתבצעות מרוכז ב-advisor.py, כדי
 שאפשר יהיה להציג בממשק אילו מקורות התנוונו.
 """
+import json
 from datetime import datetime
 
-import streamlit as st
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
 
-import db
+from . import db
+from .config import env, ttl_cache
 
 PERSONAL_CALENDAR_ID = "jeniabur@gmail.com"
 STUDIO_CALENDAR_ID = "flyfit03@gmail.com"
 SCOPES = ["https://www.googleapis.com/auth/calendar.readonly"]
 
 
-@st.cache_resource
+@ttl_cache()
 def _get_service():
-    if "gcp_service_account" not in st.secrets:
-        raise RuntimeError('חסר בלוק [gcp_service_account] ב-secrets (מקומית: .streamlit/secrets.toml, בענן: Streamlit Cloud secrets).')
-    creds = service_account.Credentials.from_service_account_info(
-        dict(st.secrets["gcp_service_account"]), scopes=SCOPES
-    )
+    raw = env("GCP_SERVICE_ACCOUNT_JSON")
+    if not raw:
+        raise RuntimeError(
+            "חסר משתנה הסביבה GCP_SERVICE_ACCOUNT_JSON (מקומית: .env, בענן: "
+            "הגדרות משתני הסביבה של הפלטפורמה)."
+        )
+    info = json.loads(raw)
+    creds = service_account.Credentials.from_service_account_info(info, scopes=SCOPES)
     return build("calendar", "v3", credentials=creds, cache_discovery=False)
 
 

@@ -2,17 +2,19 @@
 מכל המקורות - משימות, לוח שיעורים מ-Arbox, שני יומני Google (אישי + סטודיו),
 וחגים משלושת הדתות - ובונה מהם system prompt לכל פנייה בצ'אט. כל מקור נתפס
 בנפרד: כשל באחד (שגיאת רשת, הרשאה, קובץ חסר) לא מפיל את השאר, רק מצטרף
-לרשימת "מקורות לא זמינים" שהעמוד מציג כהערה לא-חוסמת.
+לרשימת "מקורות לא זמינים" שהממשק יכול להציג כהערה לא-חוסמת.
 
-אם OPENAI_API_KEY לא מוגדר, is_configured() מחזיר False והעמוד לא מציג צ'אט.
+אם OPENAI_API_KEY לא מוגדר, is_configured() מחזיר False.
 """
 import logging
 import sys
 from datetime import datetime, timedelta
 from pathlib import Path
 
-import streamlit as st
 from openai import OpenAI
+
+from . import arbox, db, google_calendar, religious_calendar
+from .config import env, ttl_cache
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -25,23 +27,18 @@ if not logger.handlers:
     logger.addHandler(_handler)
     logger.propagate = False
 
-import arbox
-import db
-import google_calendar
-import religious_calendar
-
 MODEL = "gpt-4o-mini"  # מודל זול ומהיר, מספיק ליכולות ניתוח/סיכום טקסט כאן
 CONTEXT_DAYS_AHEAD = 90
-NOTES_FILE = Path(__file__).resolve().parent / "DATA" / "mydates.docx"
+NOTES_FILE = Path(__file__).resolve().parent.parent / "DATA" / "mydates.docx"
 
 
 def is_configured() -> bool:
-    return bool(st.secrets.get("OPENAI_API_KEY"))
+    return bool(env("OPENAI_API_KEY"))
 
 
-@st.cache_resource
+@ttl_cache()
 def _client() -> OpenAI:
-    return OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
+    return OpenAI(api_key=env("OPENAI_API_KEY"))
 
 
 def _read_studio_notes() -> str:
@@ -88,15 +85,33 @@ def _format_arbox(classes: list[dict] | None, err: str | None) -> str:
         return _FETCH_FAILED
     if not classes:
         return "(אין שיעורי Arbox בטווח)"
+
+    # "אימון פתוח" עם 0 רשומים הוא סלוט זמן פנוי גנרי (שעת אימון עצמאי, לא
+    # שיעור עם מדריך) - יש עשרות כאלה כל יום, וברוב הטווח (90 יום) זה מציף
+    # את ה-prompt (נמדד: ~80% מהתווים, 284 מתוך 448 שורות) ומדחיק את הנתונים
+    # הרלוונטיים בפועל (משימות/יומנים), עד כדי כך שהמודל דילג עליהם בתשובה.
+    # משאירים שיעורים עם מדריך/נרשמים בפועל, ורק מסכמים את הכמות שהושמטה.
+    real = [
+        c for c in classes
+        if c.get("instructor_name") or (c.get("booked_count") or 0) > 0
+    ]
+    omitted = len(classes) - len(real)
+
     lines = []
-    for c in classes:
+    for c in real:
         time_part = f" {str(c['time'])[:5]}" if c.get("time") else ""
         occ = ""
         if c.get("capacity") is not None and c.get("booked_count") is not None:
             occ = f" ({c['booked_count']}/{c['capacity']})"
         instructor = f" עם {c['instructor_name']}" if c.get("instructor_name") else ""
         lines.append(f"- {c['date']}{time_part}: {c.get('class_type') or 'שיעור'}{instructor}{occ}")
-    return "\n".join(lines)
+
+    if omitted:
+        lines.append(
+            f"(בנוסף, הושמטו {omitted} סלוטים של \"אימון פתוח\" ללא נרשמים ובלי "
+            "מדריך - זמן אימון עצמאי פנוי, לא שיעורים מתוזמנים)"
+        )
+    return "\n".join(lines) if lines else "(אין שיעורי Arbox עם נרשמים/מדריך בטווח)"
 
 
 def _format_events(events: list[dict] | None, err: str | None) -> str:
@@ -113,10 +128,10 @@ def _format_holidays(holidays_list: list[dict]) -> str:
     return "\n".join(f"- {h['date']}: {h['name']} ({h['religion']})" for h in holidays_list)
 
 
-@st.cache_data(ttl=3600, show_spinner=False)
+@ttl_cache(ttl_seconds=3600)
 def _gather_context(date_from: str, date_to: str) -> tuple[str, list[str]]:
     """אוסף מכל המקורות, כל אחד בנפרד כדי שכשל אחד לא יפיל את השאר.
-    מוחזר ומטמון ל-שעה (ttl) - אין טעם לתשאל את כל המקורות בכל הודעת צ'אט."""
+    מוחזר ומטמון לשעה (ttl) - אין טעם לתשאל את כל המקורות בכל הודעת צ'אט."""
     tasks, tasks_err = _safe("משימות", db.get_tasks, date_from, date_to)
     arbox_classes, arbox_err = _safe("שיעורי Arbox", arbox.get_classes_between, date_from, date_to)
     personal_events, personal_err = _safe(
@@ -170,7 +185,7 @@ def clear_context_cache() -> None:
     """מנקה את מטמון _gather_context (ttl=3600) - יש לקרוא לזה אחרי שינוי
     שרלוונטי לאחד המקורות (למשל שיתוף יומן Google מחדש), כדי שלא להמתין
     לפקיעת ה-cache כדי לראות את הנתונים המעודכנים."""
-    _gather_context.clear()
+    _gather_context.cache_clear()
 
 
 def chat(history: list[dict], user_message: str) -> tuple[str, list[str], str]:

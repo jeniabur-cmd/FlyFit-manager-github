@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+
+{% block title %}תבניות - FlyFit Manager{% endblock %}
+
+{% block content %}
+        <section class="card">
+            <h2>🔁 תבניות משימות חוזרות</h2>
+            <p class="empty-note">כל תבנית פעילה יוצרת אוטומטית משימה חדשה בכל יום.</p>
+
+            <button type="button" id="cat-creator-toggle" class="icon-btn text-btn">+ קטגוריה חדשה</button>
+            <form id="cat-creator-form" class="inline-form" hidden>
+                <input id="cat-creator-input" type="text" placeholder="שם הקטגוריה">
+                <button type="submit">צור קטגוריה</button>
+            </form>
+
+            <h3>תבנית חדשה</h3>
+            <form id="add-template-form" class="task-form">
+                <input id="tmpl-title" type="text" placeholder="כותרת *" required>
+                <select id="tmpl-category">
+                    <option value="">(ללא קטגוריה)</option>
+                    {% for c in categories %}
+                    <option value="{{ c.id }}">{{ c.name }}</option>
+                    {% endfor %}
+                </select>
+                <input id="tmpl-time" type="time" placeholder="שעת ברירת מחדל">
+                <button type="submit">הוסף תבנית</button>
+            </form>
+        </section>
+
+        <section class="card">
+            <h2>כל התבניות</h2>
+            <ul id="template-list" class="task-list"></ul>
+            <p id="template-empty" class="empty-note" hidden>אין תבניות עדיין</p>
+        </section>
+{% endblock %}
+
+{% block extra_scripts %}
+    <script src="{{ url_for('static', filename='js/task_templates.js') }}"></script>
+{% endblock %}
