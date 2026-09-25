@@ -6,13 +6,16 @@
 לניווט). כל האינטראקציה בכל העמודים דרך endpoints ב-/api/... שה-JS קורא
 להם עם fetch - בלי רענון עמוד מלא.
 """
+import logging
 from datetime import date, datetime
 
+import openai
 from flask import Flask, jsonify, render_template, request
 
 from services import advisor, arbox, db
 
 app = Flask(__name__)
+logger = logging.getLogger(__name__)
 
 
 # ---------- עזרי תאריך/JSON ----------
@@ -279,8 +282,23 @@ def api_chat():
 
     try:
         reply, degraded, _system_prompt = advisor.chat(history, message)
+    except openai.AuthenticationError:
+        logger.exception("advisor chat: OpenAI authentication failed")
+        return jsonify({"error": "שגיאת אימות מול OpenAI - המפתח (OPENAI_API_KEY) שגוי, בוטל, "
+                                  "או לא הוגדר נכון במשתני הסביבה של השרת."}), 502
+    except openai.RateLimitError:
+        logger.exception("advisor chat: OpenAI rate limit/quota exceeded")
+        return jsonify({"error": "חריגת מכסה או קצב בקשות ל-OpenAI (rate limit/quota) - "
+                                  "נסו שוב בעוד כמה רגעים או בדקו את יתרת החשבון."}), 502
+    except (openai.APITimeoutError, openai.APIConnectionError):
+        logger.exception("advisor chat: OpenAI network/timeout error")
+        return jsonify({"error": "בעיית תקשורת או פסק זמן (timeout) בפנייה ל-OpenAI - נסו שוב."}), 502
+    except openai.APIError as e:
+        logger.exception("advisor chat: OpenAI API error")
+        return jsonify({"error": f"שגיאה מצד OpenAI ({type(e).__name__})"}), 502
     except Exception as e:
-        return jsonify({"error": f"שגיאה בפנייה ל-OpenAI: {e}"}), 502
+        logger.exception("advisor chat: unexpected error")
+        return jsonify({"error": f"שגיאה לא צפויה בשרת ({type(e).__name__}) - ראו לוגים"}), 502
 
     return jsonify({"reply": reply, "degraded": degraded})
 
