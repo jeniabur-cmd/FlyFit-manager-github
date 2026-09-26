@@ -21,6 +21,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (dateFrom) params.set('date_from', dateFrom);
     if (dateTo) params.set('date_to', dateTo);
     if (categoryId) params.set('category_id', categoryId);
+    if (document.getElementById('filter-completed').checked) params.set('include_completed', '1');
     return params;
   }
 
@@ -36,11 +37,14 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function renderTasks(tasks) {
-    tasksCountEl.textContent = `רשימת משימות (${tasks.length})`;
+    const showingCompleted = document.getElementById('filter-completed').checked;
+    tasksCountEl.textContent = showingCompleted
+      ? `משימות שהושלמו (${tasks.length})`
+      : `משימות פתוחות (${tasks.length})`;
     tasksByDateEl.innerHTML = '';
     if (!tasks.length) {
       tasksEmptyEl.hidden = false;
-      tasksEmptyEl.textContent = 'לא נמצאו משימות';
+      tasksEmptyEl.textContent = showingCompleted ? 'אין משימות שהושלמו' : 'לא נמצאו משימות';
       return;
     }
     tasksEmptyEl.hidden = true;
@@ -77,10 +81,7 @@ document.addEventListener('DOMContentLoaded', () => {
           if (!r.ok) throw new Error('toggle failed');
           return r.json();
         })
-        .then(updated => {
-          task.completed = updated.completed;
-          title.innerHTML = task.completed ? `<s>${escapeHtml(task.title)}</s>` : escapeHtml(task.title);
-        })
+        .then(() => loadTasks())
         .catch(() => {
           checkbox.checked = task.completed;
           alert('שגיאה בעדכון סטטוס המשימה');
@@ -203,6 +204,8 @@ document.addEventListener('DOMContentLoaded', () => {
     e.preventDefault();
     loadTasks();
   });
+
+  document.getElementById('filter-completed').addEventListener('change', loadTasks);
 
   filterClearBtn.addEventListener('click', () => {
     filterForm.reset();

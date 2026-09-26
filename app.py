@@ -139,12 +139,15 @@ def api_tasks_for_date(date_str: str):
 
 @app.route("/api/tasks", methods=["GET"])
 def api_list_tasks():
-    """הרשימה המלאה (כולל משימות שבוצעו - להצגה עם קו חוצה, לא הסתרה)
-    לעמוד /tasks, עם סינון אופציונלי לפי טווח תאריכים/קטגוריה."""
+    """ברירת מחדל: רק משימות פתוחות (completed=false) לעמוד /tasks. עם
+    include_completed=1 מחזיר במקום זאת רק את המשימות שהושלמו, לצפייה נפרדת -
+    לא מוצג מעורב עם הפתוחות. סינון אופציונלי נוסף לפי טווח תאריכים/קטגוריה."""
     date_from = request.args.get("date_from") or None
     date_to = request.args.get("date_to") or None
     category_id = request.args.get("category_id", type=int) or None
+    include_completed = request.args.get("include_completed") in ("1", "true")
     tasks = db.get_tasks(date_from=date_from, date_to=date_to, category_id=category_id)
+    tasks = [t for t in tasks if t["completed"] == include_completed]
     return jsonify([_task_json(t) for t in tasks])
 
 

@@ -37,13 +37,14 @@
                     <option value="{{ c.id }}">{{ c.name }}</option>
                     {% endfor %}
                 </select>
+                <label><input type="checkbox" id="filter-completed"> הצג משימות שהושלמו</label>
                 <button type="submit">סינון</button>
                 <button type="button" id="filter-clear">נקה סינון</button>
             </form>
         </section>
 
         <section class="card">
-            <h2 id="tasks-count">רשימת משימות</h2>
+            <h2 id="tasks-count">משימות פתוחות</h2>
             <div id="tasks-by-date"></div>
             <p id="tasks-empty" class="empty-note" hidden>לא נמצאו משימות</p>
         </section>
